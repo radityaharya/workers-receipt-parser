@@ -30,7 +30,27 @@ export class ReceiptCalculator {
         ? receipt.summary.discounts
         : 0;
 
-    const expectedTotal = calculatedTotal + taxAmount - discountAmount;
+    // Get service charge amount from summary
+    const serviceChargeAmount =
+      typeof receipt.summary.service_charge === "number"
+        ? receipt.summary.service_charge
+        : 0;
+
+    // Calculate sum of other charges
+    const otherChargesAmount =
+      receipt.summary.other_charges?.reduce(
+        (sum: number, charge) =>
+          sum + (typeof charge.amount === "number" ? charge.amount : 0),
+        0
+      ) || 0;
+
+    // Calculate expected total including service charge and other charges
+    const expectedTotal =
+      calculatedTotal +
+      taxAmount +
+      serviceChargeAmount +
+      otherChargesAmount -
+      discountAmount;
 
     // Calculate the discrepancy (stated total - expected total)
     const updatedReceipt = {

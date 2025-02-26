@@ -56,7 +56,7 @@ export const receiptSchema = {
         currency: {
           type: "string",
           default: "IDR",
-          description: "Currency code, defaults to IDR"
+          description: "Currency code, defaults to IDR",
         },
         payment_methods: {
           type: "array",
@@ -74,7 +74,11 @@ export const receiptSchema = {
                 ],
               },
               amount: { type: "number" },
-              card_last_four: { type: "string" },
+              card_four_digit: {
+                type: "string",
+                description:
+                  "Last or first four digits of the card number (if applicable)",
+              },
             },
             required: ["method", "amount"],
           },
@@ -91,6 +95,18 @@ export const receiptSchema = {
         taxes: { type: "number" },
         total: { type: "number" },
         discounts: { type: "number" },
+        service_charge: { type: "number" },
+        other_charges: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              description: { type: "string" },
+              amount: { type: "number" },
+            },
+            required: ["description", "amount"],
+          },
+        },
         discrepancy: {
           type: "number",
           description:
