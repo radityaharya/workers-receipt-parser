@@ -4,14 +4,12 @@ import {
   Schema,
   SchemaType,
 } from "@google/generative-ai";
-import { receiptSchema } from "../../schema/receipt.v1";
-import { jsonSchemaToZod } from "@n8n/json-schema-to-zod";
+import { receiptSchema } from "../../schema/receipt.zod";
 import { z } from "zod";
 import { ReceiptCalculator } from "../utils/ReceiptCalculator";
 import { VisionModel } from "../types";
 
-const receiptZodSchema = jsonSchemaToZod(receiptSchema);
-type ReceiptType = z.infer<typeof receiptZodSchema>;
+type ReceiptType = z.infer<typeof receiptSchema>;
 
 const MODELS = [
   {
@@ -57,66 +55,79 @@ export class GeminiService {
     if (options?.defaultPrompt) this.defaultPrompt = options.defaultPrompt;
   }
 
-  private convertJsonSchemaToGeminiSchema(jsonSchema: object): Schema {
+  private convertZodSchemaToGeminiSchema(zodSchema: z.ZodType): Schema {
     // Return cached schema if available
     if (this.cachedSchema) return this.cachedSchema;
 
-    const convert = (schema: unknown): unknown => {
-      if (!schema || typeof schema !== "object") return schema;
-
-      // Convert type
-      if (schema["type"] === "string") return { type: SchemaType.STRING };
-      if (schema["type"] === "number") return { type: SchemaType.NUMBER };
-      if (schema["type"] === "boolean") return { type: SchemaType.BOOLEAN };
-      if (schema["type"] === "array") {
+    const processZodType = (schema: z.ZodType): unknown => {
+      if (schema instanceof z.ZodString) {
+        return { type: SchemaType.STRING };
+      } else if (schema instanceof z.ZodNumber) {
+        return { type: SchemaType.NUMBER };
+      } else if (schema instanceof z.ZodBoolean) {
+        return { type: SchemaType.BOOLEAN };
+      } else if (schema instanceof z.ZodArray) {
         return {
           type: SchemaType.ARRAY,
-          items: convert(schema["items"]),
+          items: processZodType(schema._def.type),
         };
-      }
-
-      if (schema["type"] === "object") {
+      } else if (schema instanceof z.ZodObject) {
         const result: Record<string, unknown> = {
           type: SchemaType.OBJECT,
           properties: {},
+          required: [],
         };
 
-        if (schema["required"]) {
-          result.required = schema["required"];
+        const shape = schema._def.shape();
+
+        // Process each property in the object
+        for (const [key, value] of Object.entries(shape)) {
+          result.properties[key] = processZodType(value as z.ZodType);
+
+          // Check if property is required
+          if (!(value instanceof z.ZodOptional)) {
+            (result.required as string[]).push(key);
+          }
+
+          // Handle field descriptions
+          if ((value as any)._def.description) {
+            result.properties[key].description = (
+              value as any
+            )._def.description;
+          }
+
+          // Handle enums
+          if (value instanceof z.ZodEnum) {
+            result.properties[key].enum = value._def.values;
+          }
         }
 
-        if (schema["properties"]) {
-          Object.entries(schema["properties"]).forEach(([key, value]) => {
-            result.properties[key] = convert(value);
-
-            // Handle special cases
-            if (value["format"] === "date-time") {
-              result.properties[key].format = "date-time";
-            }
-            if (value["enum"]) {
-              result.properties[key].enum = value["enum"];
-            }
-          });
+        // Remove required array if empty
+        if ((result.required as string[]).length === 0) {
+          delete result.required;
         }
 
         return result;
+      } else if (schema instanceof z.ZodEnum) {
+        return {
+          type: SchemaType.STRING,
+          enum: schema._def.values,
+        };
+      } else if (schema instanceof z.ZodOptional) {
+        return processZodType(schema._def.innerType);
+      } else {
+        // Default fallback
+        return { type: SchemaType.STRING };
       }
-
-      return schema;
     };
 
-    const { $schema, title, ...schemaWithoutMeta } = jsonSchema as Record<
-      string,
-      unknown
-    >;
-
     // Cache the converted schema
-    this.cachedSchema = convert(schemaWithoutMeta) as Schema;
+    this.cachedSchema = processZodType(zodSchema) as Schema;
     return this.cachedSchema;
   }
 
   private prepareSchema(): Schema {
-    return this.convertJsonSchemaToGeminiSchema(receiptSchema);
+    return this.convertZodSchemaToGeminiSchema(receiptSchema);
   }
 
   private async retryOperation<T>(
@@ -178,7 +189,7 @@ export class GeminiService {
       try {
         const jsonResponse = JSON.parse(result.response.text());
         console.log("Successfully parsed receipt");
-        const validatedReceipt = receiptZodSchema.parse(jsonResponse);
+        const validatedReceipt = receiptSchema.parse(jsonResponse);
         return ReceiptCalculator.calculateDiscrepancy(validatedReceipt);
       } catch (error) {
         console.error("Failed to parse receipt response:", error.message);

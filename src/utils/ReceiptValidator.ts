@@ -1,15 +1,10 @@
-import { z } from "zod";
-import { jsonSchemaToZod } from "@n8n/json-schema-to-zod";
-import { receiptSchema } from "../../schema/receipt.v1";
+import { ReceiptType } from "../../schema/receipt.zod";
 import {
   ValidationIssueTypes,
   ValidationSeverity,
   type ValidationResult,
   type ValidationIssue,
 } from "./ValidationTypes";
-
-const receiptZodSchema = jsonSchemaToZod(receiptSchema);
-type ReceiptType = z.infer<typeof receiptZodSchema>;
 
 export class ReceiptValidator {
   static validate(receipt: ReceiptType): ValidationResult {

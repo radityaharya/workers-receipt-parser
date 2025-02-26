@@ -1,9 +1,4 @@
-import { z } from "zod";
-import { jsonSchemaToZod } from "@n8n/json-schema-to-zod";
-import { receiptSchema } from "../../schema/receipt.v1";
-
-const receiptZodSchema = jsonSchemaToZod(receiptSchema);
-type ReceiptType = z.infer<typeof receiptZodSchema>;
+import { ReceiptType } from "../../schema/receipt.zod";
 
 export class ReceiptCalculator {
   static calculateDiscrepancy(receipt: ReceiptType): ReceiptType {

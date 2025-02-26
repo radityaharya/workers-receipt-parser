@@ -1,20 +1,16 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
-import { jsonSchemaToZod } from "@n8n/json-schema-to-zod";
-import { receiptSchema } from "../../schema/receipt.v1";
+import { receiptSchema } from "../../schema/receipt.zod";
 import { GeminiService } from "../services/GeminiService";
 import { ReceiptCalculator } from "../utils/ReceiptCalculator";
 import { ReceiptValidator } from "../utils/ReceiptValidator";
 import { validationResultSchema } from "../utils/ValidationTypes";
 
-const receiptResponseSchema = jsonSchemaToZod(receiptSchema);
-
-const enhancedResponseSchema = (
-  receiptResponseSchema as z.ZodObject<any>
-).extend({
-  validation: validationResultSchema.optional()
-    .describe("Validation results with issues and confidence score")
-});``
+const enhancedResponseSchema = receiptSchema.extend({
+  validation: validationResultSchema
+    .optional()
+    .describe("Validation results with issues and confidence score"),
+});
 
 export class Parse extends OpenAPIRoute {
   schema = {
@@ -102,7 +98,7 @@ export class Parse extends OpenAPIRoute {
       }
 
       // Return without validation
-      const validatedResult = receiptResponseSchema.parse(
+      const validatedResult = enhancedResponseSchema.parse(
         receiptWithDiscrepancy
       );
       return c.json(validatedResult);
