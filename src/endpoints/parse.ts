@@ -3,9 +3,18 @@ import { z } from "zod";
 import { jsonSchemaToZod } from "@n8n/json-schema-to-zod";
 import { receiptSchema } from "../../schema/receipt.v1";
 import { GeminiService } from "../services/GeminiService";
+import { ReceiptCalculator } from "../utils/ReceiptCalculator";
+import { ReceiptValidator } from "../utils/ReceiptValidator";
+import { validationResultSchema } from "../utils/ValidationTypes";
 
-// Just use the schema directly without transformation
 const receiptResponseSchema = jsonSchemaToZod(receiptSchema);
+
+const enhancedResponseSchema = (
+  receiptResponseSchema as z.ZodObject<any>
+).extend({
+  validation: validationResultSchema.optional()
+    .describe("Validation results with issues and confidence score")
+});``
 
 export class Parse extends OpenAPIRoute {
   schema = {
@@ -18,7 +27,15 @@ export class Parse extends OpenAPIRoute {
           "application/json": {
             schema: z.object({
               image: z.string().describe("Base64 encoded image data"),
-              model: z.string().optional().describe("Model ID to use for parsing (optional)"),
+              model: z
+                .string()
+                .optional()
+                .describe("Model ID to use for parsing (optional)"),
+              validate: z
+                .boolean()
+                .optional()
+                .default(true)
+                .describe("Run validation on parsed receipt"),
             }),
           },
         },
@@ -29,7 +46,7 @@ export class Parse extends OpenAPIRoute {
         description: "Returns parsed receipt data",
         content: {
           "application/json": {
-            schema: receiptResponseSchema,
+            schema: enhancedResponseSchema,
           },
         },
       },
@@ -58,7 +75,7 @@ export class Parse extends OpenAPIRoute {
 
   async handle(c: any) {
     const data = await this.getValidatedData<typeof this.schema>();
-    const { image, model } = data.body;
+    const { image, model, validate = true } = data.body;
 
     try {
       if (!image || !/^data:image\/\w+;base64,/.test(image)) {
@@ -68,7 +85,26 @@ export class Parse extends OpenAPIRoute {
       const geminiService = new GeminiService(c.env.GEMINI_API_KEY, model);
       const result = await geminiService.parseReceipt(image);
 
-      const validatedResult = receiptResponseSchema.parse(result);
+      // Calculate discrepancy
+      const receiptWithDiscrepancy =
+        ReceiptCalculator.calculateDiscrepancy(result);
+
+      // Run validation if requested
+      if (validate) {
+        const validationResult = ReceiptValidator.validate(
+          receiptWithDiscrepancy
+        );
+        const enhancedResult = {
+          ...receiptWithDiscrepancy,
+          validation: validationResult,
+        };
+        return c.json(enhancedResult);
+      }
+
+      // Return without validation
+      const validatedResult = receiptResponseSchema.parse(
+        receiptWithDiscrepancy
+      );
       return c.json(validatedResult);
     } catch (error) {
       return c.json({ error: error.message || "Failed to parse receipt" }, 400);

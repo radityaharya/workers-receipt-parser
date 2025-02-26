@@ -33,11 +33,12 @@ export class GeminiService {
   private model: GenerativeModel;
   private modelId: string;
   private cachedSchema: Schema | null = null;
-  private defaultPrompt = "Parse this receipt into a JSON object. Combine date and time into an RFC3339 timestamp.";
+  private defaultPrompt =
+    "Parse this receipt into a JSON object. Combine date and time into an RFC3339 timestamp.";
   private maxRetries = 3;
 
   constructor(
-    apiKey: string, 
+    apiKey: string,
     modelId: string = MODELS[0].id,
     options?: {
       maxRetries?: number;
@@ -45,13 +46,13 @@ export class GeminiService {
     }
   ) {
     if (!apiKey) throw new Error("API key is required");
-    
+
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.modelId = modelId;
     this.model = this.genAI.getGenerativeModel({
       model: modelId,
     });
-    
+
     if (options?.maxRetries !== undefined) this.maxRetries = options.maxRetries;
     if (options?.defaultPrompt) this.defaultPrompt = options.defaultPrompt;
   }
@@ -59,7 +60,7 @@ export class GeminiService {
   private convertJsonSchemaToGeminiSchema(jsonSchema: object): Schema {
     // Return cached schema if available
     if (this.cachedSchema) return this.cachedSchema;
-    
+
     const convert = (schema: unknown): unknown => {
       if (!schema || typeof schema !== "object") return schema;
 
@@ -108,7 +109,7 @@ export class GeminiService {
       string,
       unknown
     >;
-    
+
     // Cache the converted schema
     this.cachedSchema = convert(schemaWithoutMeta) as Schema;
     return this.cachedSchema;
@@ -126,26 +127,31 @@ export class GeminiService {
       return await operation();
     } catch (error) {
       if (retries <= 0) throw error;
-      
-      console.warn(`Operation failed, retrying... (${retries} attempts left)`, error.message);
+
+      console.warn(
+        `Operation failed, retrying... (${retries} attempts left)`,
+        error.message
+      );
       // Exponential backoff
-      const delay = Math.min(1000 * (2 ** (this.maxRetries - retries)), 10000);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      
+      const delay = Math.min(1000 * 2 ** (this.maxRetries - retries), 10000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
       return this.retryOperation(operation, retries - 1);
     }
   }
 
   async parseReceipt(
-    imageBase64: string, 
+    imageBase64: string,
     prompt?: string
   ): Promise<ReceiptType> {
     // Remove data:image/xxx;base64, prefix if present
-    const base64Data = imageBase64.includes(',') ? imageBase64.split(",")[1] : imageBase64;
-    
+    const base64Data = imageBase64.includes(",")
+      ? imageBase64.split(",")[1]
+      : imageBase64;
+
     const parseOperation = async () => {
       console.log(`Parsing receipt with model: ${this.modelId}`);
-      
+
       const chatSession = this.model.startChat({
         generationConfig: {
           temperature: 1,
@@ -184,10 +190,14 @@ export class GeminiService {
   }
 
   async setModel(modelId: string): Promise<void> {
-    if (!MODELS.some(model => model.id === modelId)) {
-      throw new Error(`Invalid model ID: ${modelId}. Available models: ${MODELS.map(m => m.id).join(', ')}`);
+    if (!MODELS.some((model) => model.id === modelId)) {
+      throw new Error(
+        `Invalid model ID: ${modelId}. Available models: ${MODELS.map(
+          (m) => m.id
+        ).join(", ")}`
+      );
     }
-    
+
     this.modelId = modelId;
     this.model = this.genAI.getGenerativeModel({
       model: modelId,
@@ -195,10 +205,10 @@ export class GeminiService {
   }
 
   getModels(): VisionModel[] {
-    return MODELS.map(model => ({
+    return MODELS.map((model) => ({
       id: model.id,
       name: model.name,
-      provider: "google"
+      provider: "google",
     }));
   }
 }
