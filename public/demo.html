@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Receipt Parser Demo</title>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('receiptParser', () => ({
+        image: null,
+        result: null,
+        loading: false,
+        error: null,
+        fileName: '',
+        copied: false,
+        apiKey: '',
+        showApiKeyInput: false,
+        keyStatus: null,
+        checkingKey: false,
+
+        async handleSubmit() {
+          this.loading = true;
+          this.error = null;
+          try {
+            const response = await fetch('/api/parse', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+              },
+              body: JSON.stringify({ image: this.image })
+            });
+            this.result = await response.json();
+            if (!response.ok) throw new Error(this.result.error);
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        handleFileUpload(event) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          this.fileName = file.name;
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.image = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        },
+
+        copyToClipboard() {
+          navigator.clipboard.writeText(JSON.stringify(this.result, null, 2));
+          this.copied = true;
+          setTimeout(() => this.copied = false, 2000);
+        },
+
+        resetForm() {
+          this.image = null;
+          this.result = null;
+          this.fileName = '';
+          this.error = null;
+        },
+
+        toggleApiKeyInput() {
+          this.showApiKeyInput = !this.showApiKeyInput;
+        },
+
+        async checkApiKey() {
+          if (!this.apiKey.trim()) {
+            this.keyStatus = 'empty';
+            return;
+          }
+          
+          this.checkingKey = true;
+          try {
+            const response = await fetch('/api/check-key', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${this.apiKey}`
+              }
+            });
+            
+            if (response.ok) {
+              this.keyStatus = 'valid';
+              localStorage.setItem('receiptParserApiKey', this.apiKey);
+              setTimeout(() => {
+                this.showApiKeyInput = false;
+                this.keyStatus = null;
+              }, 1500);
+            } else {
+              this.keyStatus = 'invalid';
+            }
+          } catch (e) {
+            this.keyStatus = 'error';
+          } finally {
+            this.checkingKey = false;
+          }
+        },
+
+        init() {
+          // Load API key from localStorage if available
+          this.apiKey = localStorage.getItem('receiptParserApiKey') || '';
+        }
+      }));
+    })
+  </script>
+  <style>
+    body {
+      background-color: #000000;
+      color: #ffffff;
+    }
+    
+    pre {
+      color: #ffffff;
+      background-color: #000000;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #000000;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #ffffff;
+    }
+  </style>
+</head>
+
+<body class="bg-black min-h-screen p-4 md:p-8">
+  <div class="max-w-3xl mx-auto bg-black border border-white p-6 md:p-8 shadow-lg" x-data="receiptParser">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-white">Receipt Parser Demo</h1>
+      <p class="text-white opacity-70 mt-2">Upload a receipt image to extract structured data</p>
+    </div>
+
+    <!-- API Key Configuration -->
+    <div class="mb-6">
+      <button @click="toggleApiKeyInput" class="text-sm text-white hover:underline flex items-center">
+        <i class="fas fa-key mr-2"></i>
+        <span x-text="apiKey ? 'Change API Key' : 'Set API Key'"></span>
+        <i x-show="apiKey" class="fas fa-check-circle ml-2 text-green-500"></i>
+      </button>
+      
+      <div x-show="showApiKeyInput" class="mt-3 border border-white p-3">
+        <div class="flex mb-2">
+          <input type="password" x-model="apiKey" 
+            class="bg-black text-white border border-white px-3 py-2 flex-grow focus:outline-none" 
+            placeholder="Enter your API key">
+          <button @click="checkApiKey" :disabled="checkingKey"
+            class="bg-black hover:bg-white hover:text-black text-white border border-white px-4 ml-2 flex items-center">
+            <span x-show="!checkingKey">Verify</span>
+            <svg x-show="checkingKey" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- API Key Status Messages -->
+        <div x-show="keyStatus === 'valid'" class="text-green-500 text-sm flex items-center">
+          <i class="fas fa-check-circle mr-1"></i> API key is valid!
+        </div>
+        <div x-show="keyStatus === 'invalid'" class="text-red-500 text-sm flex items-center">
+          <i class="fas fa-times-circle mr-1"></i> Invalid API key. Please try again.
+        </div>
+        <div x-show="keyStatus === 'error'" class="text-yellow-500 text-sm flex items-center">
+          <i class="fas fa-exclamation-triangle mr-1"></i> Error checking API key. Please try again.
+        </div>
+        <div x-show="keyStatus === 'empty'" class="text-yellow-500 text-sm flex items-center">
+          <i class="fas fa-exclamation-triangle mr-1"></i> Please enter an API key.
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+      <!-- File Upload Area -->
+      <div class="border-2 border-dashed border-white p-6 text-center"
+        :class="{'bg-black border-white': image}">
+        <div x-show="!image">
+          <i class="fas fa-upload text-4xl text-white mb-3"></i>
+          <p class="text-white mb-4">Drag and drop your receipt image or</p>
+          <label class="bg-black hover:bg-white hover:text-black text-white border border-white px-4 py-2 cursor-pointer transition">
+            Browse Files
+            <input type="file" @change="handleFileUpload" accept="image/*" class="hidden">
+          </label>
+        </div>
+
+        <div x-show="image" class="flex flex-col items-center">
+          <div class="relative w-40 h-40 mb-3 border border-white">
+            <img :src="image" class="w-full h-full object-contain" alt="Receipt preview">
+          </div>
+          <p class="text-sm text-white" x-text="fileName"></p>
+          <button @click="resetForm" class="text-sm text-white mt-2 hover:underline">
+            <i class="fas fa-times mr-1"></i> Remove
+          </button>
+        </div>
+      </div>
+
+      <button @click="handleSubmit" :disabled="!image || loading || !apiKey"
+        class="w-full bg-black hover:bg-white hover:text-black text-white border border-white px-4 py-3 disabled:opacity-50 font-medium transition flex justify-center items-center">
+        <i x-show="!loading" class="fas fa-bolt mr-2"></i>
+        <span x-show="!loading" x-text="!apiKey ? 'API Key Required' : 'Parse Receipt'"></span>
+        <div x-show="loading" class="flex items-center">
+          <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+            viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+            </path>
+          </svg>
+          Processing...
+        </div>
+      </button>
+
+      <!-- Error Display -->
+      <div x-show="error" class="bg-black border-l-4 border-white text-white p-4 flex items-start">
+        <i class="fas fa-exclamation-circle text-white mt-1 mr-3"></i>
+        <div>
+          <p class="font-medium">An error occurred</p>
+          <p class="text-sm" x-text="error"></p>
+        </div>
+      </div>
+
+      <!-- Results Display -->
+      <div x-show="result" class="bg-black border border-white overflow-hidden">
+        <div class="bg-black px-4 py-2 border-b border-white flex justify-between items-center">
+          <h3 class="font-medium text-white">Extracted Data</h3>
+          <button @click="copyToClipboard"
+            class="text-sm text-white hover:underline focus:outline-none transition">
+            <span x-show="!copied"><i class="far fa-copy mr-1"></i> Copy</span>
+            <span x-show="copied"><i class="fas fa-check mr-1"></i> Copied!</span>
+          </button>
+        </div>
+        <div class="p-4 overflow-auto max-h-96 border-t border-white">
+          <pre class="text-sm whitespace-pre-wrap text-white font-mono"
+            x-text="JSON.stringify(result, null, 2)"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
