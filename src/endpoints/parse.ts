@@ -18,6 +18,7 @@ export class Parse extends OpenAPIRoute {
           "application/json": {
             schema: z.object({
               image: z.string().describe("Base64 encoded image data"),
+              model: z.string().optional().describe("Model ID to use for parsing (optional)"),
             }),
           },
         },
@@ -57,14 +58,14 @@ export class Parse extends OpenAPIRoute {
 
   async handle(c: any) {
     const data = await this.getValidatedData<typeof this.schema>();
-    const { image } = data.body;
+    const { image, model } = data.body;
 
     try {
       if (!image || !/^data:image\/\w+;base64,/.test(image)) {
         return c.json({ error: "Invalid image data" }, 400);
       }
 
-      const geminiService = new GeminiService(c.env.GEMINI_API_KEY);
+      const geminiService = new GeminiService(c.env.GEMINI_API_KEY, model);
       const result = await geminiService.parseReceipt(image);
 
       const validatedResult = receiptResponseSchema.parse(result);

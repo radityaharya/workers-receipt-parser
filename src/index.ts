@@ -2,6 +2,7 @@ import { fromHono } from "chanfana";
 import { Hono } from "hono";
 import { Parse } from "./endpoints/parse";
 import { CheckApiKey } from "./endpoints/checkApiKey";
+import { Models } from "./endpoints/models";
 import { cors } from "hono/cors";
 import { authMiddleware } from "./middleware/auth";
 
@@ -16,6 +17,7 @@ const openapi = fromHono(app, {
 
 openapi.post("/api/parse", Parse);
 openapi.get("/api/check-key", CheckApiKey);
+openapi.get("/api/models", Models);
 
 export default app;
 

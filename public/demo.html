@@ -20,6 +20,9 @@
         showApiKeyInput: false,
         keyStatus: null,
         checkingKey: false,
+        models: [],
+        selectedModel: null,
+        loadingModels: false,
 
         async handleSubmit() {
           this.loading = true;
@@ -31,7 +34,10 @@
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.apiKey}`
               },
-              body: JSON.stringify({ image: this.image })
+              body: JSON.stringify({ 
+                image: this.image,
+                model: this.selectedModel
+              })
             });
             this.result = await response.json();
             if (!response.ok) throw new Error(this.result.error);
@@ -89,6 +95,7 @@
             if (response.ok) {
               this.keyStatus = 'valid';
               localStorage.setItem('receiptParserApiKey', this.apiKey);
+              this.loadModels();
               setTimeout(() => {
                 this.showApiKeyInput = false;
                 this.keyStatus = null;
@@ -103,9 +110,40 @@
           }
         },
 
+        async loadModels() {
+          if (!this.apiKey) return;
+          
+          this.loadingModels = true;
+          try {
+            const response = await fetch('/api/models', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${this.apiKey}`
+              }
+            });
+            
+            if (response.ok) {
+              this.models = await response.json();
+              if (this.models.length > 0 && !this.selectedModel) {
+                // Default to the first model (usually the fastest)
+                this.selectedModel = this.models[0].id;
+              }
+            } else {
+              console.error('Failed to load models');
+            }
+          } catch (e) {
+            console.error('Error loading models:', e);
+          } finally {
+            this.loadingModels = false;
+          }
+        },
+
         init() {
           // Load API key from localStorage if available
           this.apiKey = localStorage.getItem('receiptParserApiKey') || '';
+          if (this.apiKey) {
+            this.loadModels();
+          }
         }
       }));
     })
@@ -178,6 +216,22 @@
         </div>
         <div x-show="keyStatus === 'empty'" class="text-yellow-500 text-sm flex items-center">
           <i class="fas fa-exclamation-triangle mr-1"></i> Please enter an API key.
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Selection -->
+    <div class="mb-6" x-show="models.length > 0">
+      <label class="block text-white text-sm mb-2">Model</label>
+      <div class="relative">
+        <select x-model="selectedModel"
+          class="appearance-none bg-black text-white border border-white px-3 py-2 w-full focus:outline-none">
+          <template x-for="model in models" :key="model.id">
+            <option :value="model.id" x-text="`${model.name} (${model.provider})`"></option>
+          </template>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
+          <i class="fas fa-chevron-down text-white"></i>
         </div>
       </div>
     </div>
