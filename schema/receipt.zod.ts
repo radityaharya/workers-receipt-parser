@@ -1,10 +1,15 @@
 import { z } from "zod";
 
 export const receiptSchema = z.object({
-  is_receipt: z.boolean().optional().describe("Indicates if the document is a receipt"),
+  is_receipt: z
+    .boolean()
+    .optional()
+    .describe("Indicates if the document is a receipt"),
   header: z.object({
     receipt_number: z.string(),
-    timestamp: z.string().describe("Receipt timestamp (RFC3339)"),
+    timestamp: z
+      .string()
+      .describe("Receipt timestamp (RFC3339), Asia/Jakarta timezone"),
     store_name: z.string(),
     store_address: z.string(),
   }),
@@ -30,7 +35,10 @@ export const receiptSchema = z.object({
   ),
   payment: z.object({
     total_amount: z.number(),
-    currency: z.string().default("IDR").describe("Currency code, defaults to IDR"),
+    currency: z
+      .string()
+      .default("IDR")
+      .describe("Currency code, defaults to IDR"),
     payment_methods: z.array(
       z.object({
         method: z.enum([
@@ -41,9 +49,12 @@ export const receiptSchema = z.object({
           "Other",
         ]),
         amount: z.number(),
-        card_four_digit: z.string().optional().describe(
-          "Last or first four digits of the card number (if applicable)"
-        ),
+        card_four_digit: z
+          .string()
+          .optional()
+          .describe(
+            "Last or first four digits of the card number (if applicable)"
+          ),
       })
     ),
     taxes: z.number().optional(),
@@ -55,15 +66,20 @@ export const receiptSchema = z.object({
     total: z.number(),
     discounts: z.number().optional(),
     service_charge: z.number().optional(),
-    other_charges: z.array(
-      z.object({
-        description: z.string(),
-        amount: z.number(),
-      })
-    ).optional(),
-    discrepancy: z.number().optional().describe(
-      "Difference between stated total and expected total (line items + tax - discount)"
-    ),
+    other_charges: z
+      .array(
+        z.object({
+          description: z.string(),
+          amount: z.number(),
+        })
+      )
+      .optional(),
+    discrepancy: z
+      .number()
+      .optional()
+      .describe(
+        "Difference between stated total and expected total (line items + tax - discount)"
+      ),
   }),
   notes: z.string().optional(),
   schema_version: z.string().optional(),

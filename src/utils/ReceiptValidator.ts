@@ -18,31 +18,103 @@ export class ReceiptValidator {
     this.validateReceiptNumberFormat(receipt, issues);
     this.validateItemsQuantityPrice(receipt, issues);
     this.validatePaymentMethodsTotal(receipt, issues);
+    this.validateStoreInfo(receipt, issues);
+    this.validateDuplicateItems(receipt, issues);
+    this.validateTimeFormat(receipt, issues);
+    this.validateSummaryCalculations(receipt, issues);
+    this.validateNegativeAmounts(receipt, issues);
+    this.validateCardNumbers(receipt, issues);
+    this.validateDiscrepancy(receipt, issues);
+    this.validateServiceCharge(receipt, issues);
 
-    // Calculate confidence score based on issues
-    // More severe issues reduce confidence more
-    const errorWeight = 0.3;
-    const warningWeight = 0.1;
-    const infoWeight = 0.03;
+    // Calculate confidence score with dynamic weighting based on issue type
+    // Base weights
+    const baseErrorWeight = 0.3;
+    const baseWarningWeight = 0.1;
+    const baseInfoWeight = 0.03;
 
-    const errorCount = issues.filter((i) => i.severity === "error").length;
-    const warningCount = issues.filter((i) => i.severity === "warning").length;
-    const infoCount = issues.filter((i) => i.severity === "info").length;
+    let confidenceReduction = 0;
+
+    issues.forEach((issue) => {
+      let weight;
+
+      // Set base weight by severity
+      if (issue.severity === ValidationSeverity.ERROR) {
+        weight = baseErrorWeight;
+      } else if (issue.severity === ValidationSeverity.WARNING) {
+        weight = baseWarningWeight;
+      } else {
+        weight = baseInfoWeight;
+      }
+
+      // Apply dynamic weight adjustment for numerical discrepancy issues
+      if (this.isNumericalDiscrepancyIssue(issue.type)) {
+        const discrepancyPercentage = this.extractDiscrepancyPercentage(
+          issue.message
+        );
+        if (discrepancyPercentage !== null) {
+          // Scale down the weight for small discrepancies
+          // A 1% discrepancy will reduce the weight by 90%
+          // A 5% discrepancy will reduce the weight by 50%
+          // A 10%+ discrepancy will use the full weight
+          const adjustmentFactor = Math.min(1.0, discrepancyPercentage / 10);
+          weight *= adjustmentFactor;
+        }
+      }
+
+      confidenceReduction += weight;
+    });
 
     // Base confidence score is 1.0 (100%)
-    const confidenceScore = Math.max(
-      0,
-      1.0 -
-        (errorCount * errorWeight +
-          warningCount * warningWeight +
-          infoCount * infoWeight)
-    );
+    const confidenceScore = Math.max(0, 1.0 - confidenceReduction);
 
     return {
-      valid: errorCount === 0,
+      valid:
+        issues.filter((i) => i.severity === ValidationSeverity.ERROR).length ===
+        0,
       issues,
       confidence_score: parseFloat(confidenceScore.toFixed(2)),
     };
+  }
+
+  /**
+   * Determines if an issue type is related to numerical discrepancies
+   */
+  private static isNumericalDiscrepancyIssue(type: string): boolean {
+    return [
+      ValidationIssueTypes.ITEMS_SUBTOTAL_MISMATCH,
+      ValidationIssueTypes.SUMMARY_CALCULATION_ERROR,
+      ValidationIssueTypes.ITEM_PRICE_CALCULATION,
+      ValidationIssueTypes.PAYMENT_METHODS_MISMATCH,
+      ValidationIssueTypes.DISCREPANCY_EXPLANATION,
+    ].includes(type as ValidationIssueTypes);
+  }
+
+  /**
+   * Extracts the percentage discrepancy from issue messages
+   * Returns null if unable to determine discrepancy percentage
+   */
+  private static extractDiscrepancyPercentage(message: string): number | null {
+    try {
+      // Extract numerical values from patterns like "162000.00" and "162199.00"
+      const numbers = message.match(/(\d+\.\d+)/g);
+      if (!numbers || numbers.length < 2) return null;
+
+      // Get the two main numbers to compare
+      const value1 = parseFloat(numbers[0]);
+      const value2 = parseFloat(numbers[1]);
+
+      // Use the larger one as the base for percentage calculation
+      const base = Math.max(value1, value2);
+      const diff = Math.abs(value1 - value2);
+
+      if (base === 0) return null; // Avoid division by zero
+
+      // Calculate percentage difference
+      return (diff / base) * 100;
+    } catch (e) {
+      return null;
+    }
   }
 
   private static validateTimestamp(
@@ -216,6 +288,270 @@ export class ReceiptValidator {
         )})`,
         severity: ValidationSeverity.WARNING,
       });
+    }
+  }
+
+  private static validateStoreInfo(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.header) return;
+
+    if (!receipt.header.store_name || receipt.header.store_name.trim() === "") {
+      issues.push({
+        type: ValidationIssueTypes.EMPTY_STORE_NAME,
+        message: "Store name is empty or missing",
+        severity: ValidationSeverity.WARNING,
+      });
+    }
+
+    if (
+      !receipt.header.store_address ||
+      receipt.header.store_address.trim() === ""
+    ) {
+      issues.push({
+        type: ValidationIssueTypes.EMPTY_STORE_ADDRESS,
+        message: "Store address is empty or missing",
+        severity: ValidationSeverity.INFO,
+      });
+    }
+  }
+
+  private static validateDuplicateItems(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.items || receipt.items.length <= 1) return;
+
+    // Check for items with identical descriptions and unit prices
+    const itemSignatures = new Map<string, number[]>();
+
+    receipt.items.forEach((item, index) => {
+      if (!item.description) return;
+
+      const signature = `${item.description.trim().toLowerCase()}_${
+        item.unit_price
+      }`;
+      if (itemSignatures.has(signature)) {
+        itemSignatures.get(signature)?.push(index);
+      } else {
+        itemSignatures.set(signature, [index]);
+      }
+    });
+
+    for (const [signature, indexes] of itemSignatures.entries()) {
+      if (indexes.length > 1) {
+        const itemIndexes = indexes.map((i) => i + 1).join(", "); // 1-based indexing for readability
+        issues.push({
+          type: ValidationIssueTypes.DUPLICATE_ITEMS,
+          message: `Potential duplicate items found (items ${itemIndexes})`,
+          severity: ValidationSeverity.INFO,
+        });
+      }
+    }
+  }
+
+  private static validateTimeFormat(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.header?.timestamp) return;
+
+    // Check if the timestamp follows ISO 8601 / RFC3339 format
+    const isoDatePattern =
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+    // e.g., 2023-10-05T14:48:00Z or 2023-10-05T14:48:00+07:00
+    if (!isoDatePattern.test(receipt.header.timestamp)) {
+      issues.push({
+        type: ValidationIssueTypes.TIMESTAMP_FORMAT,
+        message: "Timestamp format does not follow ISO 8601 / RFC3339 standard",
+        severity: ValidationSeverity.WARNING,
+      });
+    }
+  }
+
+  private static validateSummaryCalculations(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (
+      !receipt.summary ||
+      !receipt.summary.subtotal ||
+      !receipt.summary.taxes ||
+      !receipt.summary.total
+    )
+      return;
+
+    const { subtotal, taxes, total, discounts, service_charge } =
+      receipt.summary;
+    let expectedTotal = subtotal + taxes;
+
+    if (service_charge) {
+      expectedTotal += service_charge;
+    }
+
+    if (discounts) {
+      expectedTotal -= discounts;
+    }
+
+    // Allow for small rounding differences (0.01 units)
+    if (Math.abs(expectedTotal - total) > 0.01) {
+      issues.push({
+        type: ValidationIssueTypes.SUMMARY_CALCULATION_ERROR,
+        message: `Calculated total (${expectedTotal.toFixed(
+          2
+        )}) doesn't match stated total (${total.toFixed(2)})`,
+        severity: ValidationSeverity.WARNING,
+      });
+    }
+  }
+
+  private static validateNegativeAmounts(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    // Check for negative amounts in items
+    if (receipt.items) {
+      receipt.items.forEach((item, index) => {
+        if (item.quantity < 0 || item.unit_price < 0 || item.total_price < 0) {
+          issues.push({
+            type: ValidationIssueTypes.NEGATIVE_AMOUNT,
+            message: `Item ${index + 1} (${
+              item.description
+            }) has negative values`,
+            severity: ValidationSeverity.WARNING,
+          });
+        }
+      });
+    }
+
+    // Check for negative amounts in summary
+    if (receipt.summary) {
+      if (receipt.summary.subtotal < 0) {
+        issues.push({
+          type: ValidationIssueTypes.NEGATIVE_AMOUNT,
+          message: "Subtotal is negative",
+          severity: ValidationSeverity.WARNING,
+        });
+      }
+
+      if (receipt.summary.total < 0) {
+        issues.push({
+          type: ValidationIssueTypes.NEGATIVE_AMOUNT,
+          message: "Total amount is negative",
+          severity: ValidationSeverity.WARNING,
+        });
+      }
+    }
+  }
+
+  private static validateCardNumbers(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.payment?.payment_methods) return;
+
+    const cardMethods = ["Credit Card", "Debit Card"];
+
+    receipt.payment.payment_methods.forEach((method, index) => {
+      if (cardMethods.includes(method.method)) {
+        // Card payment should have a card number
+        if (!method.card_four_digit) {
+          issues.push({
+            type: ValidationIssueTypes.CARD_NUMBER_FORMAT,
+            message: `Payment method ${index + 1} (${
+              method.method
+            }) is missing card number`,
+            severity: ValidationSeverity.INFO,
+          });
+        } else if (!/^\d{4}$/.test(method.card_four_digit)) {
+          issues.push({
+            type: ValidationIssueTypes.CARD_NUMBER_FORMAT,
+            message: `Payment method ${
+              index + 1
+            } has invalid card number format (should be 4 digits)`,
+            severity: ValidationSeverity.WARNING,
+          });
+        }
+      }
+    });
+  }
+
+  private static validateDiscrepancy(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.summary || !receipt.summary.discrepancy) return;
+
+    // If there's a significant discrepancy (more than $1)
+    if (Math.abs(receipt.summary.discrepancy) > 1) {
+      issues.push({
+        type: ValidationIssueTypes.DISCREPANCY_EXPLANATION,
+        message: `Significant discrepancy (${receipt.summary.discrepancy.toFixed(
+          2
+        )}) detected in receipt totals`,
+        severity: ValidationSeverity.WARNING,
+      });
+    }
+  }
+
+  private static validateServiceCharge(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.summary?.subtotal) return;
+
+    // First, check if service charge exists and is within reasonable range
+    if (receipt.summary.service_charge) {
+      const serviceChargePercent =
+        (receipt.summary.service_charge / receipt.summary.subtotal) * 100;
+
+      if (serviceChargePercent > 25) {
+        issues.push({
+          type: ValidationIssueTypes.SERVICE_CHARGE_CALCULATION,
+          message: `Service charge (${serviceChargePercent.toFixed(
+            1
+          )}%) seems unusually high`,
+          severity: ValidationSeverity.INFO,
+        });
+      }
+
+      // Check if taxes and service charge are identical (common error in parsing)
+      if (
+        receipt.summary.taxes &&
+        Math.abs(receipt.summary.service_charge - receipt.summary.taxes) < 0.01
+      ) {
+        issues.push({
+          type: ValidationIssueTypes.SERVICE_CHARGE_CALCULATION,
+          message: `Service charge (${receipt.summary.service_charge.toFixed(
+            2
+          )}) is identical to tax amount, possibly a duplicate or parsing error`,
+          severity: ValidationSeverity.WARNING,
+        });
+      }
+    }
+
+    // Check for total calculation correctness including service charge
+    if (receipt.summary.taxes && receipt.summary.total) {
+      let expectedTotal = receipt.summary.subtotal + receipt.summary.taxes;
+
+      if (receipt.summary.service_charge) {
+        expectedTotal += receipt.summary.service_charge;
+      }
+
+      if (receipt.summary.discounts) {
+        expectedTotal -= receipt.summary.discounts;
+      }
+
+      if (Math.abs(expectedTotal - receipt.summary.total) > 0.01) {
+        issues.push({
+          type: ValidationIssueTypes.SUMMARY_CALCULATION_ERROR,
+          message: `Total calculation with service charge: expected ${expectedTotal.toFixed(
+            2
+          )}, got ${receipt.summary.total.toFixed(2)}`,
+          severity: ValidationSeverity.WARNING,
+        });
+      }
     }
   }
 }

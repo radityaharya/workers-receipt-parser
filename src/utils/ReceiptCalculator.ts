@@ -39,7 +39,7 @@ export class ReceiptCalculator {
         0
       ) || 0;
 
-    // Calculate expected total including service charge and other charges
+    // Calculate expected total
     const expectedTotal =
       calculatedTotal +
       taxAmount +
