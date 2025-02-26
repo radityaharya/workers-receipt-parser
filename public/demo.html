@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <title>Receipt Parser Demo</title>
@@ -23,6 +23,8 @@
         models: [],
         selectedModel: null,
         loadingModels: false,
+        activeTab: 'json',
+        showLightbox: false,
 
         async handleSubmit() {
           this.loading = true;
@@ -34,7 +36,7 @@
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.apiKey}`
               },
-              body: JSON.stringify({ 
+              body: JSON.stringify({
                 image: this.image,
                 model: this.selectedModel
               })
@@ -82,7 +84,7 @@
             this.keyStatus = 'empty';
             return;
           }
-          
+
           this.checkingKey = true;
           try {
             const response = await fetch('/api/check-key', {
@@ -91,7 +93,7 @@
                 'Authorization': `Bearer ${this.apiKey}`
               }
             });
-            
+
             if (response.ok) {
               this.keyStatus = 'valid';
               localStorage.setItem('receiptParserApiKey', this.apiKey);
@@ -112,7 +114,7 @@
 
         async loadModels() {
           if (!this.apiKey) return;
-          
+
           this.loadingModels = true;
           try {
             const response = await fetch('/api/models', {
@@ -121,7 +123,7 @@
                 'Authorization': `Bearer ${this.apiKey}`
               }
             });
-            
+
             if (response.ok) {
               this.models = await response.json();
               if (this.models.length > 0 && !this.selectedModel) {
@@ -138,38 +140,83 @@
           }
         },
 
+        setTab(tab) {
+          this.activeTab = tab;
+        },
+
+        formatCurrency(amount) {
+          const currency = this.result?.payment?.currency || 'IDR';
+          return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency,
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+          }).format(amount);
+        },
+
+        formatDate(timestamp) {
+          if (!timestamp) return '';
+          try {
+            const date = new Date(timestamp);
+            return new Intl.DateTimeFormat('en-US', {
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            }).format(date);
+          } catch (e) {
+            return timestamp;
+          }
+        },
+
+        toggleLightbox(show) {
+          this.showLightbox = show;
+          if (show) {
+            document.body.style.overflow = 'hidden';
+          } else {
+            document.body.style.overflow = '';
+          }
+        },
+
         init() {
           // Load API key from localStorage if available
           this.apiKey = localStorage.getItem('receiptParserApiKey') || '';
           if (this.apiKey) {
             this.loadModels();
           }
+
+          // Add escape key handler for lightbox
+          window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.showLightbox) {
+              this.toggleLightbox(false);
+            }
+          });
         }
       }));
     })
   </script>
   <style>
-    body {
-      background-color: #000000;
-      color: #ffffff;
-    }
-    
-    pre {
-      color: #ffffff;
-      background-color: #000000;
-    }
-    
+    /* Only keeping styles that can't be easily achieved with Tailwind */
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
     }
-    
+
     ::-webkit-scrollbar-track {
       background: #000000;
     }
-    
+
     ::-webkit-scrollbar-thumb {
       background: #ffffff;
+    }
+
+    .tab-active {
+      border-bottom: 2px solid white;
+    }
+
+    .lightbox-img {
+      max-width: min(1200px, 90vw);
+      max-height: 90vh;
+      width: auto;
+      height: auto;
     }
   </style>
 </head>
@@ -183,27 +230,32 @@
 
     <!-- API Key Configuration -->
     <div class="mb-6">
-      <button @click="toggleApiKeyInput" class="text-sm text-white hover:underline flex items-center">
-        <i class="fas fa-key mr-2"></i>
+      <button @click="toggleApiKeyInput" class="text-sm text-white hover:underline flex items-center"
+        aria-expanded="showApiKeyInput" aria-controls="apiKeyInput">
+        <i class="fas fa-key mr-2" aria-hidden="true"></i>
         <span x-text="apiKey ? 'Change API Key' : 'Set API Key'"></span>
-        <i x-show="apiKey" class="fas fa-check-circle ml-2 text-green-500"></i>
+        <i x-show="apiKey" class="fas fa-check-circle ml-2 text-green-500" aria-hidden="true"></i>
       </button>
-      
-      <div x-show="showApiKeyInput" class="mt-3 border border-white p-3">
+
+      <div x-show="showApiKeyInput" class="mt-3 border border-white p-3" id="apiKeyInput">
         <div class="flex mb-2">
-          <input type="password" x-model="apiKey" 
-            class="bg-black text-white border border-white px-3 py-2 flex-grow focus:outline-none" 
-            placeholder="Enter your API key">
-          <button @click="checkApiKey" :disabled="checkingKey"
-            class="bg-black hover:bg-white hover:text-black text-white border border-white px-4 ml-2 flex items-center">
+          <input type="password" x-model="apiKey"
+            class="bg-black text-white border border-white px-3 py-2 flex-grow focus:outline-none"
+            placeholder="Enter your API key" aria-label="API Key">
+          <button @click="checkApiKey" :disabled="checkingKey || !apiKey.trim()"
+            class="bg-black hover:bg-white hover:text-black text-white border border-white px-4 ml-2 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Verify API key">
             <span x-show="!checkingKey">Verify</span>
-            <svg x-show="checkingKey" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg x-show="checkingKey" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none"
+              viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+              </path>
             </svg>
           </button>
         </div>
-        
+
         <!-- API Key Status Messages -->
         <div x-show="keyStatus === 'valid'" class="text-green-500 text-sm flex items-center">
           <i class="fas fa-check-circle mr-1"></i> API key is valid!
@@ -222,10 +274,11 @@
 
     <!-- Model Selection -->
     <div class="mb-6" x-show="models.length > 0">
-      <label class="block text-white text-sm mb-2">Model</label>
+      <label for="modelSelect" class="block text-white text-sm mb-2">Model</label>
       <div class="relative">
-        <select x-model="selectedModel"
-          class="appearance-none bg-black text-white border border-white px-3 py-2 w-full focus:outline-none">
+        <select id="modelSelect" x-model="selectedModel"
+          class="appearance-none bg-black text-white border border-white px-3 py-2 w-full focus:outline-none"
+          aria-label="Select parsing model">
           <template x-for="model in models" :key="model.id">
             <option :value="model.id" x-text="`${model.name} (${model.provider})`"></option>
           </template>
@@ -238,30 +291,48 @@
 
     <div class="space-y-6">
       <!-- File Upload Area -->
-      <div class="border-2 border-dashed border-white p-6 text-center"
-        :class="{'bg-black border-white': image}">
+      <div class="border-2 border-dashed border-white p-6 text-center" :class="{'bg-black border-white': image}"
+        role="region" aria-label="File upload area">
         <div x-show="!image">
           <i class="fas fa-upload text-4xl text-white mb-3"></i>
           <p class="text-white mb-4">Drag and drop your receipt image or</p>
-          <label class="bg-black hover:bg-white hover:text-black text-white border border-white px-4 py-2 cursor-pointer transition">
+          <label
+            class="bg-black hover:bg-white hover:text-black text-white border border-white px-4 py-2 cursor-pointer transition"
+            role="button" tabindex="0">
             Browse Files
-            <input type="file" @change="handleFileUpload" accept="image/*" class="hidden">
+            <input type="file" @change="handleFileUpload" accept="image/*" class="hidden"
+              aria-label="Upload receipt image">
           </label>
         </div>
 
         <div x-show="image" class="flex flex-col items-center">
           <div class="relative w-40 h-40 mb-3 border border-white">
-            <img :src="image" class="w-full h-full object-contain" alt="Receipt preview">
+            <img :src="image" class="w-full h-full object-contain cursor-pointer" alt="Receipt preview"
+              @click="toggleLightbox(true)" role="button" tabindex="0" @keydown.enter="toggleLightbox(true)">
           </div>
           <p class="text-sm text-white" x-text="fileName"></p>
-          <button @click="resetForm" class="text-sm text-white mt-2 hover:underline">
-            <i class="fas fa-times mr-1"></i> Remove
+          <button @click="resetForm" class="text-sm text-white mt-2 hover:underline" aria-label="Remove image">
+            <i class="fas fa-times mr-1" aria-hidden="true"></i> Remove
           </button>
         </div>
       </div>
 
+      <!-- Lightbox -->
+      <div x-show="showLightbox" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
+        @click.self="toggleLightbox(false)" role="dialog" aria-label="Image preview">
+        <button @click="toggleLightbox(false)"
+          class="absolute top-4 right-4 text-white p-2 hover:text-gray-300 transition-colors z-[60]"
+          aria-label="Close preview">
+          <i class="fas fa-times fa-2x" aria-hidden="true"></i>
+        </button>
+        <div class="relative flex items-center justify-center w-full h-full p-4">
+          <img :src="image" alt="Receipt full preview" class="lightbox-img object-contain" style="z-index: 55">
+        </div>
+      </div>
+
       <button @click="handleSubmit" :disabled="!image || loading || !apiKey"
-        class="w-full bg-black hover:bg-white hover:text-black text-white border border-white px-4 py-3 disabled:opacity-50 font-medium transition flex justify-center items-center">
+        class="w-full bg-black hover:bg-white hover:text-black text-white border border-white px-4 py-3 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition flex justify-center items-center"
+        aria-label="Parse receipt">
         <i x-show="!loading" class="fas fa-bolt mr-2"></i>
         <span x-show="!loading" x-text="!apiKey ? 'API Key Required' : 'Parse Receipt'"></span>
         <div x-show="loading" class="flex items-center">
@@ -285,19 +356,173 @@
         </div>
       </div>
 
-      <!-- Results Display -->
+      <!-- Results Display with Tabs -->
       <div x-show="result" class="bg-black border border-white overflow-hidden">
         <div class="bg-black px-4 py-2 border-b border-white flex justify-between items-center">
-          <h3 class="font-medium text-white">Extracted Data</h3>
-          <button @click="copyToClipboard"
-            class="text-sm text-white hover:underline focus:outline-none transition">
+          <div class="flex">
+            <button @click="setTab('json')" class="mr-4 py-2 text-white focus:outline-none transition"
+              :class="{'tab-active': activeTab === 'json'}">
+              <i class="fas fa-code mr-1"></i> JSON
+            </button>
+            <button @click="setTab('preview')" class="py-2 text-white focus:outline-none transition"
+              :class="{'tab-active': activeTab === 'preview'}">
+              <i class="fas fa-receipt mr-1"></i> Preview
+            </button>
+          </div>
+          <button @click="copyToClipboard" class="text-sm text-white hover:underline focus:outline-none transition">
             <span x-show="!copied"><i class="far fa-copy mr-1"></i> Copy</span>
             <span x-show="copied"><i class="fas fa-check mr-1"></i> Copied!</span>
           </button>
         </div>
-        <div class="p-4 overflow-auto max-h-96 border-t border-white">
-          <pre class="text-sm whitespace-pre-wrap text-white font-mono"
-            x-text="JSON.stringify(result, null, 2)"></pre>
+
+        <!-- JSON Tab -->
+        <div x-show="activeTab === 'json'" class="p-4 overflow-auto max-h-96 border-t border-white">
+          <pre class="text-sm whitespace-pre-wrap text-white font-mono" x-text="JSON.stringify(result, null, 2)"></pre>
+        </div>
+
+        <!-- Preview Tab -->
+        <div x-show="activeTab === 'preview'" class="overflow-auto max-h-96 border-t border-white">
+          <div class="p-4 space-y-6">
+            <!-- Receipt Header -->
+            <div class="border-b border-white pb-4">
+              <h3 class="text-xl font-medium text-white text-center mb-1"
+                x-text="result?.header?.store_name || 'Receipt'"></h3>
+              <p class="text-center text-white opacity-70 text-sm mb-1" x-text="result?.header?.store_address"></p>
+              <p class="text-center text-white opacity-70 text-sm">
+                <span x-text="formatDate(result?.header?.timestamp)"></span> |
+                <span>Receipt #<span x-text="result?.header?.receipt_number"></span></span>
+              </p>
+              <p class="mt-2 text-center">
+                <span class="text-sm inline-block px-2 py-1 bg-white text-black rounded-full"
+                  x-text="result?.category"></span>
+              </p>
+            </div>
+
+            <!-- Items Table -->
+            <div>
+              <h4 class="font-medium text-white mb-2">Items</h4>
+              <div class="overflow-x-auto">
+                <table class="w-full divide-y divide-white/20 text-white">
+                  <thead>
+                    <tr>
+                      <th class="py-2 px-4 text-left font-semibold">Item</th>
+                      <th class="py-2 px-4 text-center font-semibold">Qty</th>
+                      <th class="py-2 px-4 text-right font-semibold">Price</th>
+                      <th class="py-2 px-4 text-right font-semibold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-white/20">
+                    <template x-for="(item, index) in result?.items" :key="index">
+                      <tr>
+                        <td class="py-2 px-4" x-text="item.description"></td>
+                        <td class="py-2 px-4 text-center" x-text="item.quantity"></td>
+                        <td class="py-2 px-4 text-right" x-text="formatCurrency(item.unit_price)"></td>
+                        <td class="py-2 px-4 text-right" x-text="formatCurrency(item.total_price)"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Summary & Payment -->
+            <div class="flex flex-col md:flex-row gap-6 text-white">
+              <!-- Payment Methods -->
+              <div class="flex-1">
+                <h4 class="font-medium text-white mb-2">Payment Methods</h4>
+                <div class="space-y-2">
+                  <template x-for="(payment, index) in result?.payment?.payment_methods" :key="index">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <span x-text="payment.method"></span>
+                        <span x-show="payment.card_four_digit" class="text-sm opacity-70">
+                          (*<span x-text="payment.card_four_digit"></span>)
+                        </span>
+                      </div>
+                      <div x-text="formatCurrency(payment.amount)"></div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Summary -->
+              <div class="flex-1">
+                <h4 class="font-medium text-white mb-2">Summary</h4>
+                <div class="space-y-1">
+                  <div class="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span x-text="formatCurrency(result?.summary?.subtotal)"></span>
+                  </div>
+                  <div class="flex justify-between" x-show="result?.summary?.taxes">
+                    <span>Tax:</span>
+                    <span x-text="formatCurrency(result?.summary?.taxes)"></span>
+                  </div>
+                  <div class="flex justify-between" x-show="result?.summary?.discounts">
+                    <span>Discount:</span>
+                    <span>-<span x-text="formatCurrency(result?.summary?.discounts)"></span></span>
+                  </div>
+                  <div class="flex justify-between" x-show="result?.summary?.service_charge">
+                    <span>Service Charge:</span>
+                    <span x-text="formatCurrency(result?.summary?.service_charge)"></span>
+                  </div>
+                  <template x-for="(charge, index) in result?.summary?.other_charges" :key="index">
+                    <div class="flex justify-between">
+                      <span x-text="charge.description"></span>
+                      <span x-text="formatCurrency(charge.amount)"></span>
+                    </div>
+                  </template>
+                  <div class="border-t border-white mt-2 pt-2 flex justify-between font-bold">
+                    <span>Total:</span>
+                    <span x-text="formatCurrency(result?.summary?.total)"></span>
+                  </div>
+                  <div class="flex justify-between text-yellow-400"
+                    x-show="result?.summary?.discrepancy && result.summary.discrepancy !== 0">
+                    <span>Discrepancy:</span>
+                    <span x-text="formatCurrency(result?.summary?.discrepancy)"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Validation Results -->
+            <div x-show="result?.validation" class="mt-4 border-t border-white pt-4 text-white">
+              <h4 class="font-medium text-white mb-2">Validation</h4>
+              <div class="flex items-center gap-2 mb-2">
+                <span>Confidence Score:</span>
+                <div class="flex-grow bg-gray-800 h-2 rounded-full">
+                  <div class="h-full rounded-full" :class="{
+                      'bg-red-500': result?.validation?.confidence_score < 0.7,
+                      'bg-yellow-500': result?.validation?.confidence_score >= 0.7 && result?.validation?.confidence_score < 0.9,
+                      'bg-green-500': result?.validation?.confidence_score >= 0.9
+                    }" :style="`width: ${(result?.validation?.confidence_score * 100)}%`">
+                  </div>
+                </div>
+                <span class="text-sm" x-text="`${Math.round(result?.validation?.confidence_score * 100)}%`"></span>
+              </div>
+              <div x-show="result?.validation?.issues?.length > 0" class="space-y-2">
+                <p class="text-sm font-medium">Issues:</p>
+                <ul class="space-y-1">
+                  <template x-for="(issue, index) in result?.validation?.issues" :key="index">
+                    <li class="flex items-start gap-2 text-sm">
+                      <i class="mt-0.5" :class="{
+                          'fas fa-info-circle text-blue-400': issue.severity === 'info',
+                          'fas fa-exclamation-triangle text-yellow-400': issue.severity === 'warning',
+                          'fas fa-exclamation-circle text-red-400': issue.severity === 'error'
+                        }">
+                      </i>
+                      <span x-text="issue.message"></span>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div x-show="result?.notes" class="border-t border-white pt-4 text-white">
+              <h4 class="font-medium text-white mb-2">Notes</h4>
+              <p class="text-sm italic" x-text="result?.notes"></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

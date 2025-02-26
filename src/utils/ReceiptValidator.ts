@@ -526,7 +526,7 @@ export class ReceiptValidator {
           message: `Service charge (${receipt.summary.service_charge.toFixed(
             2
           )}) is identical to tax amount, possibly a duplicate or parsing error`,
-          severity: ValidationSeverity.WARNING,
+          severity: ValidationSeverity.INFO,
         });
       }
     }
@@ -534,9 +534,14 @@ export class ReceiptValidator {
     // Check for total calculation correctness including service charge
     if (receipt.summary.taxes && receipt.summary.total) {
       let expectedTotal = receipt.summary.subtotal + receipt.summary.taxes;
-
-      if (receipt.summary.service_charge) {
-        expectedTotal += receipt.summary.service_charge;
+      
+      // Only add service charge to expected total if it should be included
+      const shouldIncludeServiceCharge = 
+        receipt.summary.service_charge && 
+        (receipt.summary.service_charge_included === true);
+        
+      if (shouldIncludeServiceCharge) {
+        expectedTotal += receipt.summary.service_charge!;
       }
 
       if (receipt.summary.discounts) {
@@ -544,13 +549,27 @@ export class ReceiptValidator {
       }
 
       if (Math.abs(expectedTotal - receipt.summary.total) > 0.01) {
-        issues.push({
-          type: ValidationIssueTypes.SUMMARY_CALCULATION_ERROR,
-          message: `Total calculation with service charge: expected ${expectedTotal.toFixed(
-            2
-          )}, got ${receipt.summary.total.toFixed(2)}`,
-          severity: ValidationSeverity.WARNING,
-        });
+        // If service charge exists but discrepancy equals service charge, add note about it
+        if (
+          receipt.summary.service_charge &&
+          Math.abs(Math.abs(receipt.summary.discrepancy || 0) - receipt.summary.service_charge) < 0.01
+        ) {
+          issues.push({
+            type: ValidationIssueTypes.SERVICE_CHARGE_CALCULATION,
+            message: `Service charge (${receipt.summary.service_charge.toFixed(2)}) appears to be ${
+              receipt.summary.service_charge_included ? "included in" : "excluded from"
+            } the total amount`,
+            severity: ValidationSeverity.INFO,
+          });
+        } else {
+          issues.push({
+            type: ValidationIssueTypes.SUMMARY_CALCULATION_ERROR,
+            message: `Total calculation ${shouldIncludeServiceCharge ? "with" : "without"} service charge: expected ${expectedTotal.toFixed(
+              2
+            )}, got ${receipt.summary.total.toFixed(2)}`,
+            severity: ValidationSeverity.WARNING,
+          });
+        }
       }
     }
   }

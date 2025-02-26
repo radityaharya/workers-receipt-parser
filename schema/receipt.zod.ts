@@ -28,8 +28,8 @@ export const receiptSchema = z.object({
     z.object({
       description: z.string(),
       quantity: z.number(),
-      unit_price: z.number(),
-      total_price: z.number(),
+      unit_price: z.number().describe("Amount paid using this method (if amount is small, assume its in thousands)"),
+      total_price: z.number().describe("Amount paid using this method (if amount is small, assume its in thousands)"),
       tax: z.number().optional(),
     })
   ),
@@ -48,7 +48,7 @@ export const receiptSchema = z.object({
           "Digital Wallet",
           "Other",
         ]),
-        amount: z.number(),
+        amount: z.number().describe("Amount paid using this method (if amount is small, assume its in thousands)"),
         card_four_digit: z
           .string()
           .optional()
@@ -65,7 +65,7 @@ export const receiptSchema = z.object({
     taxes: z.number(),
     total: z.number(),
     discounts: z.number().optional(),
-    service_charge: z.number().optional(),
+    service_charge: z.number().optional().describe("Service charge amount. (Usually indicated by 'SC' or 'Service Charge' or 'Service')"),
     other_charges: z
       .array(
         z.object({
@@ -79,6 +79,12 @@ export const receiptSchema = z.object({
       .optional()
       .describe(
         "Difference between stated total and expected total (line items + tax - discount)"
+      ),
+    service_charge_included: z
+      .boolean()
+      .optional()
+      .describe(
+        "Indicates if service charge appears to be included in the total amount"
       ),
   }),
   notes: z.string().optional(),

@@ -39,20 +39,45 @@ export class ReceiptCalculator {
         0
       ) || 0;
 
-    // Calculate expected total
-    const expectedTotal =
+    // Calculate expected total with and without service charge
+    const expectedTotalWithServiceCharge =
       calculatedTotal +
       taxAmount +
       serviceChargeAmount +
       otherChargesAmount -
       discountAmount;
+    
+    const expectedTotalWithoutServiceCharge =
+      calculatedTotal +
+      taxAmount +
+      otherChargesAmount -
+      discountAmount;
 
-    // Calculate the discrepancy (stated total - expected total)
+    // Calculate discrepancies for both scenarios
+    const discrepancyWithServiceCharge = Number(
+      (receipt.summary.total - expectedTotalWithServiceCharge).toFixed(2)
+    );
+    
+    const discrepancyWithoutServiceCharge = Number(
+      (receipt.summary.total - expectedTotalWithoutServiceCharge).toFixed(2)
+    );
+
+    // Determine if service charge is included in total based on which discrepancy is smaller
+    const isServiceChargeIncluded = 
+      Math.abs(discrepancyWithServiceCharge) < Math.abs(discrepancyWithoutServiceCharge);
+    
+    // Use the appropriate discrepancy value
+    const discrepancy = isServiceChargeIncluded 
+      ? discrepancyWithServiceCharge 
+      : discrepancyWithoutServiceCharge;
+
+    // Add service_charge_included flag to help with validation
     const updatedReceipt = {
       ...receipt,
       summary: {
         ...receipt.summary,
-        discrepancy: Number((receipt.summary.total - expectedTotal).toFixed(2)),
+        discrepancy: discrepancy,
+        service_charge_included: isServiceChargeIncluded,
       },
     };
 
