@@ -26,9 +26,11 @@ export class ReceiptValidator {
     this.validateCardNumbers(receipt, issues);
     this.validateDiscrepancy(receipt, issues);
     this.validateServiceCharge(receipt, issues);
+    this.validateTotalAmount(receipt, issues);
 
     // Calculate confidence score with dynamic weighting based on issue type
     // Base weights
+    const baseFatalWeight = 0.6;
     const baseErrorWeight = 0.3;
     const baseWarningWeight = 0.1;
     const baseInfoWeight = 0.03;
@@ -36,15 +38,21 @@ export class ReceiptValidator {
     let confidenceReduction = 0;
 
     issues.forEach((issue) => {
-      let weight;
+      let weight: number;
 
-      // Set base weight by severity
-      if (issue.severity === ValidationSeverity.ERROR) {
-        weight = baseErrorWeight;
-      } else if (issue.severity === ValidationSeverity.WARNING) {
-        weight = baseWarningWeight;
-      } else {
-        weight = baseInfoWeight;
+
+      switch (issue.severity) {
+        case ValidationSeverity.FATAL:
+          weight = baseFatalWeight;
+          break;
+        case ValidationSeverity.ERROR:
+          weight = baseErrorWeight;
+          break;
+        case ValidationSeverity.WARNING:
+          weight = baseWarningWeight;
+          break;
+        default:
+          weight = baseInfoWeight;
       }
 
       // Apply dynamic weight adjustment for numerical discrepancy issues
@@ -571,6 +579,23 @@ export class ReceiptValidator {
           });
         }
       }
+    }
+  }
+
+  // hacky validation for IDR receipts
+  private static validateTotalAmount(
+    receipt: ReceiptType,
+    issues: ValidationIssue[]
+  ): void {
+    if (!receipt.summary?.total) return;
+
+    const threshold = 1000;
+    if (receipt.summary.total < threshold) {
+      issues.push({
+        type: ValidationIssueTypes.TOTAL_TOO_SMALL,
+        message: `Total too less than ${threshold}, might be because of thousand scaling`,
+        severity: ValidationSeverity.FATAL,
+      });
     }
   }
 }

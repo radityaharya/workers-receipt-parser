@@ -24,6 +24,7 @@ export enum ValidationIssueTypes {
   CARD_NUMBER_FORMAT = "card_number_format",
   DISCREPANCY_EXPLANATION = "discrepancy_explanation",
   SERVICE_CHARGE_CALCULATION = "service_charge_calculation",
+  TOTAL_TOO_SMALL = "total_too_small",
 }
 
 export type ValidationIssueType =
@@ -33,6 +34,7 @@ export const ValidationSeverity = {
   ERROR: "error",
   WARNING: "warning",
   INFO: "info",
+  FATAL: "fatal",
 } as const;
 
 export type ValidationSeverityType =
@@ -59,12 +61,14 @@ export const validationIssueTypeSchema = z.enum([
   ValidationIssueTypes.CARD_NUMBER_FORMAT,
   ValidationIssueTypes.DISCREPANCY_EXPLANATION,
   ValidationIssueTypes.SERVICE_CHARGE_CALCULATION,
+  ValidationIssueTypes.TOTAL_TOO_SMALL,
 ]);
 
 export const validationSeveritySchema = z.enum([
   ValidationSeverity.ERROR,
   ValidationSeverity.WARNING,
   ValidationSeverity.INFO,
+  ValidationSeverity.FATAL,
 ]);
 
 export const validationIssueSchema = z.object({

@@ -28,8 +28,16 @@ export const receiptSchema = z.object({
     z.object({
       description: z.string(),
       quantity: z.number(),
-      unit_price: z.number().describe("Amount paid using this method (if amount is small, assume its in thousands)"),
-      total_price: z.number().describe("Amount paid using this method (if amount is small, assume its in thousands)"),
+      unit_price: z
+        .number()
+        .describe(
+          "Amount paid using this method (if less than 1000, assume its in thousands)"
+        ),
+      total_price: z
+        .number()
+        .describe(
+          "Amount paid using this method (if less than 1000, assume its in thousands)"
+        ),
       tax: z.number().optional(),
     })
   ),
@@ -48,7 +56,11 @@ export const receiptSchema = z.object({
           "Digital Wallet",
           "Other",
         ]),
-        amount: z.number().describe("Amount paid using this method (if amount is small, assume its in thousands)"),
+        amount: z
+          .number()
+          .describe(
+            "Amount paid using this method (if less than 1000, assume its in thousands)"
+          ),
         card_four_digit: z
           .string()
           .optional()
@@ -65,12 +77,24 @@ export const receiptSchema = z.object({
     taxes: z.number(),
     total: z.number(),
     discounts: z.number().optional(),
-    service_charge: z.number().optional().describe("Service charge amount. (Usually indicated by 'SC' or 'Service Charge' or 'Service')"),
+    service_charge: z
+      .number()
+      .optional()
+      .describe(
+        "Service charge amount. (Usually indicated by 'SC' or 'Service Charge' or 'Service')"
+      )
+      .describe(
+        "Amount paid using this method (if less than 1000, assume its in thousands)"
+      ),
     other_charges: z
       .array(
         z.object({
           description: z.string(),
-          amount: z.number(),
+          amount: z
+            .number()
+            .describe(
+              "Amount paid using this method (if less than 1000, assume its in thousands)"
+            ),
         })
       )
       .optional(),
