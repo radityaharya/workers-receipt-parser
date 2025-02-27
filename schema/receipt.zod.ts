@@ -73,6 +73,14 @@ export const receiptSchema = z.object({
     discounts: z.number().optional(),
   }),
   summary: z.object({
+    title: z
+      .string()
+      .describe("1-3 words that describes overall of the receipt (e.g. 'Coffee', 'McDonalds', etc)"),
+    description: z
+      .string()
+      .describe(
+        "A short description of the receipt, includes 'title' and 'place'"
+      ),
     subtotal: z.number(),
     taxes: z.number(),
     total: z.number(),
