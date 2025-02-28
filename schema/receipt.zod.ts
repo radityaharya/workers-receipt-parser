@@ -5,6 +5,7 @@ export const receiptSchema = z.object({
     .boolean()
     .optional()
     .describe("Indicates if the document is a receipt"),
+  image_path: z.string().url().optional().describe("Path to the image [OMIT]"),
   header: z.object({
     receipt_number: z.string(),
     timestamp: z
@@ -75,7 +76,9 @@ export const receiptSchema = z.object({
   summary: z.object({
     title: z
       .string()
-      .describe("1-3 words that describes overall of the receipt (e.g. 'Coffee', 'McDonalds', etc)"),
+      .describe(
+        "1-3 words that describes overall of the receipt (e.g. 'Coffee', 'McDonalds', etc)"
+      ),
     description: z
       .string()
       .describe(

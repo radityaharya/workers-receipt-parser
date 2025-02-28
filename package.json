@@ -1,8 +1,8 @@
 {
 	"name": "workers-receipt-parser",
-  "author": {
-    "name": "radityaharya",
-    "email": "contact@radityaharya.com"
+	"author": {
+		"name": "radityaharya",
+		"email": "contact@radityaharya.com"
 	},
 	"version": "0.0.1",
 	"private": true,
@@ -15,14 +15,16 @@
 	"dependencies": {
 		"@google/generative-ai": "^0.22.0",
 		"@n8n/json-schema-to-zod": "^1.1.0",
-		"chanfana": "^2.0.2",
-		"hono": "^4.4.7",
-		"zod": "^3.23.8"
+		"@types/uuid": "^10.0.0",
+		"chanfana": "^2.6.3",
+		"hono": "^4.7.2",
+		"uuid": "^11.1.0",
+		"zod": "^3.24.2"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250224.0",
-		"@types/node": "20.8.3",
-		"@types/service-worker-mock": "^2.0.1",
-		"wrangler": "^3.110.0"
+		"@types/node": "22.13.5",
+		"@types/service-worker-mock": "^2.0.4",
+		"wrangler": "^3.111.0"
 	}
 }

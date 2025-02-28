@@ -14,28 +14,34 @@ importers:
       '@n8n/json-schema-to-zod':
         specifier: ^1.1.0
         version: 1.1.0(zod@3.24.2)
+      '@types/uuid':
+        specifier: ^10.0.0
+        version: 10.0.0
       chanfana:
-        specifier: ^2.0.2
+        specifier: ^2.6.3
         version: 2.6.3
       hono:
-        specifier: ^4.4.7
+        specifier: ^4.7.2
         version: 4.7.2
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
       zod:
-        specifier: ^3.23.8
+        specifier: ^3.24.2
         version: 3.24.2
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250224.0
         version: 4.20250224.0
       '@types/node':
-        specifier: 20.8.3
-        version: 20.8.3
+        specifier: 22.13.5
+        version: 22.13.5
       '@types/service-worker-mock':
-        specifier: ^2.0.1
+        specifier: ^2.0.4
         version: 2.0.4
       wrangler:
-        specifier: ^3.110.0
-        version: 3.110.0(@cloudflare/workers-types@4.20250224.0)
+        specifier: ^3.111.0
+        version: 3.111.0(@cloudflare/workers-types@4.20250224.0)
 
 packages:
 
@@ -358,11 +364,14 @@ packages:
     peerDependencies:
       zod: ^3.0.0
 
-  '@types/node@20.8.3':
-    resolution: {integrity: sha512-jxiZQFpb+NlH5kjW49vXxvxTjeeqlbsnTAdBTKpzEdPs9itay7MscYXz3Fo9VYFEsfQ6LJFitHad3faerLAjCw==}
+  '@types/node@22.13.5':
+    resolution: {integrity: sha512-+lTU0PxZXn0Dr1NBtC7Y8cR21AJr87dLLU953CWA6pMxxv/UDc7jYAY90upcrie1nRcD6XNG5HOYEDtgW5TxAg==}
 
   '@types/service-worker-mock@2.0.4':
     resolution: {integrity: sha512-MEBT2eiqYfhxjqYm/oAf2AvKLbPTPwJJAYrMdheKnGyz1yG9XBRfxCzi93h27qpSvI7jOYfXqFLVMLBXFDqo4A==}
+
+  '@types/uuid@10.0.0':
+    resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
   acorn-walk@8.3.2:
     resolution: {integrity: sha512-cjkyv4OtNCIeqhHrfS81QWXoCBPExR/J62oyEqepVw8WaQeSqpW2uhuLPh1m9eWhDuOo/jUXVTlifvesOWp/4A==}
@@ -538,6 +547,9 @@ packages:
   ufo@1.5.4:
     resolution: {integrity: sha512-UsUk3byDzKd04EyoZ7U4DOlxQaD14JUKQl6/P7wiX4FNvUfm3XL246n9W5AmqwW5RSFJ27NAuM0iLscAOYUiGQ==}
 
+  undici-types@6.20.0:
+    resolution: {integrity: sha512-Ny6QZ2Nju20vw1SRHe3d9jVu6gJ+4e3+MMpqu7pqE5HT6WsTSlce++GQmK5UXS8mzV8DSYHrQH+Xrf2jVcuKNg==}
+
   undici@5.28.5:
     resolution: {integrity: sha512-zICwjrDrcrUE0pyyJc1I2QzBkLM8FINsgOrt6WjA+BgajVq9Nxu2PbFFXUrAggLfDXlZGZBVZYw7WNV5KiBiBA==}
     engines: {node: '>=14.0'}
@@ -545,13 +557,17 @@ packages:
   unenv@2.0.0-rc.1:
     resolution: {integrity: sha512-PU5fb40H8X149s117aB4ytbORcCvlASdtF97tfls4BPIyj4PeVxvpSuy1jAptqYHqB0vb2w2sHvzM0XWcp2OKg==}
 
+  uuid@11.1.0:
+    resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
+    hasBin: true
+
   workerd@1.20250214.0:
     resolution: {integrity: sha512-QWcqXZLiMpV12wiaVnb3nLmfs/g4ZsFQq2mX85z546r3AX4CTIkXl0VP50W3CwqLADej3PGYiRDOTelDOwVG1g==}
     engines: {node: '>=16'}
     hasBin: true
 
-  wrangler@3.110.0:
-    resolution: {integrity: sha512-ldTaxtcYozSHo8QRcxTQUckO9C7zSZgG0/AMCqFLdKK7fYLFPWEwmbnh+gxzlxzWEMfa8fV/5NtR0k2bCBxAoA==}
+  wrangler@3.111.0:
+    resolution: {integrity: sha512-3j/Wq5aj/sCQRSmkjBLxbkIH7LCx0h2UnaxmhOplDjJmZty10lGRs/jGgaG/M/GEsDg5TJ7UHvBh3hSldgjfKg==}
     engines: {node: '>=16.17.0'}
     hasBin: true
     peerDependencies:
@@ -791,9 +807,13 @@ snapshots:
     dependencies:
       zod: 3.24.2
 
-  '@types/node@20.8.3': {}
+  '@types/node@22.13.5':
+    dependencies:
+      undici-types: 6.20.0
 
   '@types/service-worker-mock@2.0.4': {}
+
+  '@types/uuid@10.0.0': {}
 
   acorn-walk@8.3.2: {}
 
@@ -1012,6 +1032,8 @@ snapshots:
 
   ufo@1.5.4: {}
 
+  undici-types@6.20.0: {}
+
   undici@5.28.5:
     dependencies:
       '@fastify/busboy': 2.1.1
@@ -1024,6 +1046,8 @@ snapshots:
       pathe: 1.1.2
       ufo: 1.5.4
 
+  uuid@11.1.0: {}
+
   workerd@1.20250214.0:
     optionalDependencies:
       '@cloudflare/workerd-darwin-64': 1.20250214.0
@@ -1032,7 +1056,7 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20250214.0
       '@cloudflare/workerd-windows-64': 1.20250214.0
 
-  wrangler@3.110.0(@cloudflare/workers-types@4.20250224.0):
+  wrangler@3.111.0(@cloudflare/workers-types@4.20250224.0):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.3.4
       '@esbuild-plugins/node-globals-polyfill': 0.2.3(esbuild@0.17.19)
