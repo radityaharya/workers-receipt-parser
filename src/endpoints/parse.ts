@@ -2,6 +2,8 @@ import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { receiptSchema } from "../../schema/receipt.zod";
 import { GeminiService } from "../services/GeminiService";
+import { MinioService } from "../services/MinioService";
+import { ImgProxyService } from "../services/imgProxyService";
 import { ReceiptCalculator } from "../utils/ReceiptCalculator";
 import { ReceiptValidator } from "../utils/ReceiptValidator";
 import { validationResultSchema } from "../utils/ValidationTypes";
@@ -80,10 +82,17 @@ export class Parse extends OpenAPIRoute {
         return c.json({ error: "Invalid image data" }, 400);
       }
 
-      // Upload image to R2 storage
-      const imagePath = await this.uploadImageToR2(
+      // Process & Upload image to MinIO with compression
+      const imagePath = await this.processAndUploadImage(
         image,
-        c.env.receipts_storage
+        c.env.MINIO_ENDPOINT,
+        c.env.MINIO_ACCESS_KEY,
+        c.env.MINIO_SECRET_KEY,
+        c.env.MINIO_BUCKET,
+        c.env.MINIO_REGION,
+        c.env.IMGPROXY_URL,
+        c.env.IMGPROXY_KEY,
+        c.env.IMGPROXY_SALT
       );
 
       const geminiService = new GeminiService(c.env.GEMINI_API_KEY, model);
@@ -122,16 +131,32 @@ export class Parse extends OpenAPIRoute {
   }
 
   /**
-   * Upload base64 image to R2 storage with a UUID filename
+   * Process and upload base64 image to MinIO S3 storage
+   * This method first uploads to a temporary location, processes via ImgProxy,
+   * then uploads the final compressed image to the permanent location
+   * 
    * @param base64Image Base64 encoded image data
-   * @param r2Bucket R2 bucket instance
-   * @returns URL of the uploaded image
+   * @param endpoint MinIO endpoint URL
+   * @param accessKey MinIO access key
+   * @param secretKey MinIO secret key
+   * @param bucket MinIO bucket name
+   * @param region MinIO region
+   * @param imgproxyUrl ImgProxy base URL
+   * @param imgproxyKey ImgProxy key
+   * @param imgproxySalt ImgProxy salt
+   * @returns Path of the uploaded image
    */
-  private async uploadImageToR2(
+  private async processAndUploadImage(
     base64Image: string,
-    r2Bucket: R2Bucket
+    endpoint: string,
+    accessKey: string,
+    secretKey: string,
+    bucket: string,
+    region: string,
+    imgproxyUrl: string,
+    imgproxyKey: string,
+    imgproxySalt: string
   ): Promise<string> {
-    // Extract content type and base64 data
     const matches = base64Image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
 
     if (!matches || matches.length !== 3) {
@@ -142,19 +167,42 @@ export class Parse extends OpenAPIRoute {
     const base64Data = matches[2];
     const fileExtension = this.getFileExtensionFromMimeType(contentType);
 
-    // Generate UUID filename
-    const filename = `${uuidv4()}${fileExtension}`;
+    const uuid = uuidv4();
+    const tmpFilename = `tmp/${uuid}${fileExtension}`;
+    const finalFilename = `${uuid}.webp`;
 
-    // Decode base64 data
     const imageData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
 
-    // Upload to R2
-    await r2Bucket.put(filename, imageData, {
-      httpMetadata: { contentType },
+    const minioService = new MinioService(endpoint, accessKey, secretKey, bucket, region);
+    
+    // 1. Upload the raw image to temp location in MinIO
+    await minioService.uploadObject(tmpFilename, imageData, contentType);
+    
+    // 2. Get S3 URL for the tmp image
+    const s3Url = minioService.getS3Url(tmpFilename);
+    
+    // 3. Initialize ImgProxy service and generate URL for optimized image
+    const imgproxyService = new ImgProxyService(imgproxyUrl, imgproxyKey, imgproxySalt);
+    const processedImageUrl = imgproxyService.generateUrl(s3Url, {
+      quality: 70,
+      format: 'webp',
+      resize: 'fit',
     });
-
-    // Return the URL path of the uploaded image - now uses our endpoint
-    return `/images/${filename}`;
+    
+    // 4. Fetch the optimized image from ImgProxy
+    const processedImage = await imgproxyService.fetchImage(processedImageUrl);
+    
+    // 5. Upload the processed image to the final location in MinIO
+    await minioService.uploadObject(
+      `receipts/${finalFilename}`,
+      processedImage.data,
+      processedImage.contentType
+    );
+    
+    // 6. Delete the temporary file to avoid storing unnecessary files
+    await minioService.deleteObject(tmpFilename);
+    
+    return `/images/${finalFilename}`;
   }
 
   /**

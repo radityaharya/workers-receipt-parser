@@ -1,6 +1,7 @@
 import { OpenAPIRoute, Str } from "chanfana";
 import { AppContext } from "index";
 import { z } from "zod";
+import { MinioService } from "../services/MinioService";
 
 export class GetReceiptImage extends OpenAPIRoute {
   schema = {
@@ -13,28 +14,10 @@ export class GetReceiptImage extends OpenAPIRoute {
     },
     responses: {
       "200": {
-        description: "Returns the requested image",
+        description: "Returns the image file",
         content: {
-          "image/jpeg": {
-            schema: Str({}),
-          },
-          "image/png": {
-            schema: Str({}),
-          },
-          "image/gif": {
-            schema: Str({}),
-          },
           "image/webp": {
-            schema: Str({}),
-          },
-          "image/bmp": {
-            schema: Str({}),
-          },
-          "image/tiff": {
-            schema: Str({}),
-          },
-          "image/svg+xml": {
-            schema: Str({}),
+            schema: Str(),
           },
         },
       },
@@ -58,32 +41,72 @@ export class GetReceiptImage extends OpenAPIRoute {
       return c.json({ error: "Filename is required" }, 400);
     }
 
-    const { file } = data.params;
+    const { file: filename } = data.params;
+
+    console.log(`Fetching image: ${filename}`);
 
     try {
-      const object = await c.env.receipts_storage.get(file);
+      const minioService = new MinioService(
+        c.env.MINIO_ENDPOINT,
+        c.env.MINIO_ACCESS_KEY,
+        c.env.MINIO_SECRET_KEY,
+        c.env.MINIO_BUCKET,
+        c.env.MINIO_REGION
+      );
 
-      if (!object) {
-        return c.json({ error: "Image not found" }, 404);
-      }
+      // Check if file exists errors for some reason
+      // console.log(`Checking if image exists: ${c.env.MINIO_BUCKET}/${filename}`);
+      // const exists = await minioService.objectExists(
+      //   `${c.env.MINIO_BUCKET}/${filename}`
+      // );
+      // if (!exists) {
+      //   return c.json({ error: "Image not found" }, 404);
+      // }
 
-      const headers = new Headers();
-      object.writeHttpMetadata(headers);
-      headers.set("etag", object.httpEtag);
-      headers.set("Cache-Control", "public, max-age=31536000");
+      console.log(`Fetching image: receipts/${filename}`);
+      // Get file from MinIO
+      const imageData = await minioService.getObject(
+        `receipts/${filename}`
+      );
 
-      return new Response(object.body, {
-        headers,
+      // Determine content type based on file extension
+      console.log(`Image data length: ${imageData.length}`);
+      const contentType = this.getContentTypeFromFilename(filename);
+
+      // Return the image
+      return new Response(imageData, {
+        headers: {
+          "Content-Type": contentType,
+          "Cache-Control": "public, max-age=31536000",
+        },
       });
     } catch (error) {
-      return c.json(
-        { error: error.message || "Failed to retrieve image" },
-        500
-      );
+      return c.json({ error: error.message || "Failed to get image" }, 500);
     }
+  }
+
+  /**
+   * Get content type from filename
+   * @param filename Filename with extension
+   * @returns Content type string
+   */
+  private getContentTypeFromFilename(filename: string): string {
+    const extension = filename.split(".").pop()?.toLowerCase();
+    const contentTypes: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+      bmp: "image/bmp",
+      svg: "image/svg+xml",
+    };
+
+    return contentTypes[extension] || "application/octet-stream";
   }
 }
 
+// TODO: use minio
 export class UploadReceiptImage extends OpenAPIRoute {
   schema = {
     tags: ["Images"],

@@ -27,8 +27,15 @@ export default app;
 
 export interface Bindings {
   GEMINI_API_KEY: string;
-  receipts_storage: R2Bucket;
   API_KEY: string;
+  IMGPROXY_KEY: string;
+  IMGPROXY_SALT: string; 
+  IMGPROXY_URL: string;
+  MINIO_ENDPOINT: string;
+  MINIO_ACCESS_KEY: string;
+  MINIO_SECRET_KEY: string;
+  MINIO_BUCKET: string;
+  MINIO_REGION: string;
 }
 
 export type AppContext = Context<{ Bindings: Bindings }>;
